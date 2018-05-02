@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import random
-import graphviz
+# import graphviz
 
 from sklearn import ensemble, linear_model, preprocessing, cross_validation, metrics, tree
 from sklearn.cluster import KMeans
@@ -49,11 +49,11 @@ weights = outcomes.transpose().sum()
 X_p  = 2 * outcomes - 1
 
 # Assumes X is in the {-1, 1} space
-def distances(X):
+def distances_outcome(X):
     return (- (X_p.dot(X.transpose()) - len(forest.estimators_)) / 2)
 
 def neighbors(idx, ceiling):
-    return distances(X_p.iloc[idx]) <= ceiling
+    return distances_outcome(X_p.iloc[idx]) <= ceiling
 
 plt.figure(1)
 
@@ -63,9 +63,57 @@ plt.savefig("weights.png")
 
 plt.clf()
 
-distances(X_p.sample(n = 1000)).mean().hist()
+distances_outcome(X_p.sample(n = 1000)).mean().hist()
 
-plt.savefig("distances.png")
+plt.savefig("distances_outcome.png")
+
+simple_kmeans = KMeans(n_clusters = 10).fit(outcomes)
+simple_clusters = simple_kmeans.predict(outcomes)
+simple_outcomes_dist = pd.DataFrame(simple_kmeans.transform(outcomes))
+
+with open("simple-clusters.org", "w") as f:
+    print >> f, "* Clusters", "\n"
+
+    for i in range(10):
+        idx = simple_clusters == i
+        cluster_weights = weights[idx]
+        mean_weight = cluster_weights.mean()
+        dists_to_centroid = simple_outcomes_dist[idx][i]
+        mean_dist_to_centroid = dists_to_centroid.mean()
+        plt.clf()
+        cluster_weights.hist()
+        plt.savefig("simple-cluster-%d-weights.png" % i)
+        print >> f, "** Cluster", i, ", weight =", mean_weight, ", dist to center =", mean_dist_to_centroid, "\n"
+        s = original_data[idx].sample(n = 5)
+        for p in range(len(s)):
+            print >> f, s.iloc[p]
+            print >> f, "Weight =", weights[s.iloc[p].name], "\n"
+
+X_for_nodes = X.sample(n = 1000)
+node_outcomes_train, n_nodes = forest.decision_path(X_for_nodes)
+node_outcomes, _ = forest.decision_path(X)
+
+node_kmeans = KMeans(n_clusters = 10).fit(node_outcomes_train)
+node_clusters = node_kmeans.predict(node_outcomes)
+node_outcomes_dist = node_kmeans.transform(node_outcomes)
+
+with open("node-clusters.org", "w") as f:
+    print >> f, "* Clusters", "\n"
+
+    for i in range(10):
+        idx = node_clusters == i
+        cluster_weights = weights[idx]
+        mean_weight = cluster_weights.mean()
+        dists_to_centroid = pd.DataFrame(node_outcomes_dist[idx])[i]
+        mean_dist_to_centroid = dists_to_centroid.mean()
+        plt.clf()
+        cluster_weights.hist()
+        plt.savefig("node-cluster-%d-weights.png" % i)
+        print >> f, "** Cluster", i, ", weight =", mean_weight, ", dist to center =", mean_dist_to_centroid, "\n"
+        s = original_data[idx].sample(n = 5)
+        for p in range(len(s)):
+            print >> f, s.iloc[p]
+            print >> f, "Weight =", weights[s.iloc[p].name], "\n"
 
 # reduced_data = PCA(n_components=2).fit_transform(X_p)
 # kmeans = KMeans(init='k-means++', n_clusters=30, n_init=10)
@@ -104,25 +152,3 @@ plt.savefig("distances.png")
 # plt.xticks(())
 # plt.yticks(())
 # plt.savefig("kmeans.png")
-
-kmeans = KMeans(n_clusters = 10).fit(outcomes)
-clusters = kmeans.predict(outcomes)
-outcomes_dist = pd.DataFrame(kmeans.transform(outcomes))
-
-with open("clusters.org", "w") as f:
-    print >> f, "* Clusters", "\n"
-
-    for i in range(10):
-        idx = clusters == i
-        cluster_weights = weights[idx]
-        mean_weight = cluster_weights.mean()
-        dists_to_centroid = outcomes_dist[idx][i]
-        mean_dist_to_centroid = dists_to_centroid.mean()
-        plt.clf()
-        cluster_weights.hist()
-        plt.savefig("cluster-%d-weights.png" % i)
-        print >> f, "** Cluster", i, ", weight =", mean_weight, ", dist to center =", mean_dist_to_centroid, "\n"
-        s = original_data[idx].sample(n = 5)
-        for p in range(len(s)):
-            print >> f, s.iloc[p]
-            print >> f, "Weight =", weights[s.iloc[p].name], "\n"
