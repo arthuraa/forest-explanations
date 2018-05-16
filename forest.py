@@ -9,27 +9,14 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 
+import adult as adult
+
+original_data = adult.original
+binary_data = adult.binary
+
 def proj(model, X):
     train_preds = [tree.predict(X) for tree in model.estimators_]
     return pd.DataFrame.from_items(zip(range(0,len(model.estimators_)),train_preds))
-
-column_names = ["Age", "Workclass", "fnlwgt", "Education", "Education-Num", "Martial Status",
-                "Occupation", "Relationship", "Race", "Sex", "Capital Gain", "Capital Loss",
-                "Hours per week", "Country", "Target"]
-
-original_data = pd.read_csv('adult.data.csv', names = column_names, sep = r'\s*,\s*', engine = 'python', na_values = '?')
-original_data_test = pd.read_csv('adult.data.csv', names = column_names, sep = r'\s*,\s*', engine = 'python', na_values = '?')
-
-original_data = pd.concat([original_data, original_data_test])
-
-del original_data['fnlwgt']
-del original_data["Education"]
-
-binary_data = pd.get_dummies(original_data)
-# Let's fix the Target as it will be converted to dummy vars too
-binary_data["Target"] = binary_data["Target_>50K"]
-del binary_data["Target_<=50K"]
-del binary_data["Target_>50K"]
 
 X = binary_data[binary_data.columns.difference(["Target"])]
 y = binary_data["Target"]
@@ -91,7 +78,7 @@ with open("simple-clusters.org", "w") as f:
 
 X_for_nodes = X.sample(n = 1000)
 node_outcomes_train, n_nodes = forest.decision_path(X_for_nodes)
-node_outcomes, _ = forest.decision_path(X)
+node_outcomes, nodes_n_nodes_ptr = forest.decision_path(X)
 
 node_kmeans = KMeans(n_clusters = 10).fit(node_outcomes_train)
 node_clusters = node_kmeans.predict(node_outcomes)
@@ -114,6 +101,25 @@ with open("node-clusters.org", "w") as f:
         for p in range(len(s)):
             print >> f, s.iloc[p]
             print >> f, "Weight =", weights[s.iloc[p].name], "\n"
+
+node_paths = forest.apply(X)
+X_for_paths = X.sample(n = 20)
+
+with open("path-neighborhoods.org", "w") as f:
+    print >> f, "* Clusters", "\n"
+
+    for i in range(len(X_for_paths)):
+        dists = pd.Series([sum(node_paths[i] != node_paths[j]) for j in range(len(X))])
+        close = original_data[dists <= 26]
+        print >> f, "** Cluster", i, ", mean dist = ", dists.mean(), ", sd = ", dists.std(), ", # < 27 = ", len(close), "\n"
+        for p in range(len(close)):
+            print >> f, close.iloc[p,:], "\n"
+            print >> f, "Weight =", weights[close.iloc[p].name], "\n"
+
+
+
+
+
 
 # reduced_data = PCA(n_components=2).fit_transform(X_p)
 # kmeans = KMeans(init='k-means++', n_clusters=30, n_init=10)
