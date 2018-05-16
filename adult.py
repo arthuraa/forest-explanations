@@ -20,3 +20,6 @@ binary = pd.get_dummies(original)
 binary["Target"] = binary["Target_>50K"]
 del binary["Target_<=50K"]
 del binary["Target_>50K"]
+
+labels = binary["Target"]
+binary = binary[binary.columns.difference(["Target"])]

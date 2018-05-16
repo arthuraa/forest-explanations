@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import random
-# import graphviz
 
 from sklearn import ensemble, linear_model, preprocessing, cross_validation, metrics, tree
 from sklearn.cluster import KMeans
@@ -12,14 +11,8 @@ import matplotlib.pyplot as plt
 import adult as adult
 
 original_data = adult.original
-binary_data = adult.binary
-
-def proj(model, X):
-    train_preds = [tree.predict(X) for tree in model.estimators_]
-    return pd.DataFrame.from_items(zip(range(0,len(model.estimators_)),train_preds))
-
-X = binary_data[binary_data.columns.difference(["Target"])]
-y = binary_data["Target"]
+X = adult.binary
+y = adult.labels
 indices = range(0, len(X))
 
 X_train, X_test, y_train, y_test, indices_train, indices_test = cross_validation.train_test_split(X, y, indices, train_size=0.70)
@@ -29,89 +22,87 @@ forest = forest.fit(X_train, y_train)
 y_pred = forest.predict(X_test)
 print "Random forest F1 score: %f" % metrics.f1_score(y_test, y_pred)
 
-outcomes = proj(forest, X)
-
-weights = outcomes.transpose().sum()
-
-X_p  = 2 * outcomes - 1
-
-# Assumes X is in the {-1, 1} space
-def distances_outcome(X):
-    return (- (X_p.dot(X.transpose()) - len(forest.estimators_)) / 2)
-
-def neighbors(idx, ceiling):
-    return distances_outcome(X_p.iloc[idx]) <= ceiling
-
+predictions = [tree.predict(X) for tree in forest.estimators_]
+votes = pd.DataFrame.from_items(zip(range(len(forest.estimators_)), predictions))
+score = votes.transpose().sum()
 plt.figure(1)
-
-weights.hist()
-
-plt.savefig("results/weights.png")
-
+score.hist()
+plt.savefig("results/score.png")
 plt.clf()
 
-distances_outcome(X_p.sample(n = 1000)).mean().hist()
+# Cluster points by the votes cast by each tree in the forest
+def by_votes():
+    kmeans = KMeans(n_clusters = 10).fit(votes)
+    clusters = kmeans.predict(votes)
+    votes_dist = pd.DataFrame(kmeans.transform(votes))
 
-plt.savefig("results/distances_outcome.png")
+    with open("results/vote-clusters.org", "w") as f:
+        print >> f, "* Clusters", "\n"
 
-simple_kmeans = KMeans(n_clusters = 10).fit(outcomes)
-simple_clusters = simple_kmeans.predict(outcomes)
-simple_outcomes_dist = pd.DataFrame(simple_kmeans.transform(outcomes))
+        for i in range(10):
+            idx = clusters == i
+            cluster_scores = score[idx]
+            mean_score = cluster_scores.mean()
+            dists_to_centroid = votes_dist[idx][i]
+            mean_dist_to_centroid = dists_to_centroid.mean()
+            cluster_scores.hist()
+            plt.savefig("results/vote-cluster-%d-scores.png" % i)
+            plt.clf()
+            print >> f, "** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n"
+            s = original_data[idx].sample(n = 5)
+            for p in range(len(s)):
+                print >> f, s.iloc[p]
+                print >> f, "Weight =", score[s.iloc[p].name], "\n"
 
-with open("results/simple-clusters.org", "w") as f:
-    print >> f, "* Clusters", "\n"
+    return kmeans
 
-    for i in range(10):
-        idx = simple_clusters == i
-        cluster_weights = weights[idx]
-        mean_weight = cluster_weights.mean()
-        dists_to_centroid = simple_outcomes_dist[idx][i]
-        mean_dist_to_centroid = dists_to_centroid.mean()
-        plt.clf()
-        cluster_weights.hist()
-        plt.savefig("results/simple-cluster-%d-weights.png" % i)
-        print >> f, "** Cluster", i, ", weight =", mean_weight, ", dist to center =", mean_dist_to_centroid, "\n"
-        s = original_data[idx].sample(n = 5)
-        for p in range(len(s)):
-            print >> f, s.iloc[p]
-            print >> f, "Weight =", weights[s.iloc[p].name], "\n"
+# Cluster points by the activations of each node in each tree.  Since this is a
+# very high dimensional space, we only cluster based on a sample of 1000 points.
+def by_all_nodes():
+    train_sample = X.sample(n = 1000)
+    activations_train, n_nodes_train = forest.decision_path(train_sample)
+    activations, n_nodes = forest.decision_path(X)
 
-X_for_nodes = X.sample(n = 1000)
-node_outcomes_train, n_nodes = forest.decision_path(X_for_nodes)
-node_outcomes, nodes_n_nodes_ptr = forest.decision_path(X)
+    kmeans = KMeans(n_clusters = 10).fit(activations_train)
+    clusters = kmeans.predict(activations)
+    activations_dist = kmeans.transform(activations)
 
-node_kmeans = KMeans(n_clusters = 10).fit(node_outcomes_train)
-node_clusters = node_kmeans.predict(node_outcomes)
-node_outcomes_dist = node_kmeans.transform(node_outcomes)
+    with open("results/all-node-clusters.org", "w") as f:
+        print >> f, "* Clusters", "\n"
 
-with open("results/node-clusters.org", "w") as f:
-    print >> f, "* Clusters", "\n"
+        for i in range(10):
+            idx = clusters == i
+            cluster_scores = score[idx]
+            mean_score = cluster_scores.mean()
+            dists_to_centroid = pd.DataFrame(activations_dist[idx])[i]
+            mean_dist_to_centroid = dists_to_centroid.mean()
+            cluster_scores.hist()
+            plt.savefig("results/all-node-cluster-%d-scores.png" % i)
+            plt.clf()
+            print >> f, "** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n"
+            s = original_data[idx].sample(n = 5)
+            for p in range(len(s)):
+                print >> f, s.iloc[p]
+                print >> f, "Weight =", score[s.iloc[p].name], "\n"
 
-    for i in range(10):
-        idx = node_clusters == i
-        cluster_weights = weights[idx]
-        mean_weight = cluster_weights.mean()
-        dists_to_centroid = pd.DataFrame(node_outcomes_dist[idx])[i]
-        mean_dist_to_centroid = dists_to_centroid.mean()
-        plt.clf()
-        cluster_weights.hist()
-        plt.savefig("results/node-cluster-%d-weights.png" % i)
-        print >> f, "** Cluster", i, ", weight =", mean_weight, ", dist to center =", mean_dist_to_centroid, "\n"
-        s = original_data[idx].sample(n = 5)
-        for p in range(len(s)):
-            print >> f, s.iloc[p]
-            print >> f, "Weight =", weights[s.iloc[p].name], "\n"
+    return kmeans
 
-node_paths = forest.apply(X)
-X_for_paths = X.sample(n = 20)
+def by_leaf_nodes():
+    node_paths = forest.apply(X)
+    X_for_paths = X.sample(n = 20)
 
-with open("results/path-neighborhoods.org", "w") as f:
-    print >> f, "* Clusters", "\n"
+    with open("results/path-neighborhoods.org", "w") as f:
+        print >> f, "* Clusters", "\n"
 
-    for i in range(len(X_for_paths)):
-        dists = pd.Series([sum(node_paths[i] != node_paths[j]) for j in range(len(X))])
-        close = original_data[dists <= 26]
-        print >> f, "** Cluster", i, ", mean dist = ", dists.mean(), ", sd = ", dists.std(), ", # < 27 = ", len(close), "\n"
-        for p in range(len(close)):
-            print >> f, close.iloc[p,:], "\n"
-            print >> f, "Weight =", weights[close.iloc[p].name], "\n"
+        for i in range(len(X_for_paths)):
+            # FIXME: Apparently, this is too slow
+            dists = pd.Series([sum(node_paths[i] != node_paths[j]) for j in range(len(X))])
+            close = original_data[dists <= 26]
+            if (len(close) <= 10):
+                s = close
+            else:
+                s = close.sample(n = 10)
+            print >> f, "** Cluster", i, ", mean dist = ", dists.mean(), ", sd = ", dists.std(), ", # < 27 = ", len(close), "\n"
+            for p in range(len(s)):
+                print >> f, s.iloc[p,:], "\n"
+                print >> f, "Weight =", score[s.iloc[p].name], "\n"
