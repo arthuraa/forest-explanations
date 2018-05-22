@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import random
@@ -6,20 +7,31 @@ column_names = ["Age", "Workclass", "fnlwgt", "Education", "Education-Num", "Mar
                 "Occupation", "Relationship", "Race", "Sex", "Capital Gain", "Capital Loss",
                 "Hours per week", "Country", "Target"]
 
-original = pd.read_csv('adult.data.csv', names = column_names, sep = r'\s*,\s*', engine = 'python', na_values = '?')
-original_test = pd.read_csv('adult.data.csv', names = column_names, sep = r'\s*,\s*', engine = 'python', na_values = '?')
+path = os.path.dirname(os.path.realpath(__file__))
+train_path = os.path.join(path, 'adult.data.csv')
+test_path = os.path.join(path, 'adult.test.csv')
 
-original = pd.concat([original, original_test])
+original_train = pd.read_csv(train_path,
+                             names = column_names,
+                             sep = r'\s*,\s*',
+                             engine = 'python',
+                             na_values = '?',
+                             true_values = ['>50K'],
+                             false_values = ['<=50K'])
+original_test = pd.read_csv(test_path,
+                            names = column_names,
+                            comment = '|',
+                            sep = r'\s*,\s*',
+                            engine = 'python',
+                            na_values = '?',
+                            true_values = ['>50K.'],
+                            false_values = ['<=50K.'])
+
+original = pd.concat([original_train, original_test], ignore_index=True)
 
 del original['fnlwgt']
 del original["Education"]
 
 binary = pd.get_dummies(original)
-
-# Let's fix the Target as it will be converted to dummy vars too
-binary["Target"] = binary["Target_>50K"]
-del binary["Target_<=50K"]
-del binary["Target_>50K"]
-
 labels = binary["Target"]
 binary = binary[binary.columns.difference(["Target"])]
