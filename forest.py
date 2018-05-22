@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 import random
+from scipy import sparse
 
-from sklearn import ensemble, linear_model, preprocessing, cross_validation, metrics, tree
-from sklearn.cluster import KMeans
+from sklearn import ensemble, linear_model, preprocessing, model_selection, metrics, tree
+from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
@@ -15,12 +16,11 @@ X = adult.binary
 y = adult.labels
 indices = range(0, len(X))
 
-X_train, X_test, y_train, y_test, indices_train, indices_test = cross_validation.train_test_split(X, y, indices, train_size=0.70)
+X_train, X_test, y_train, y_test, indices_train, indices_test = model_selection.train_test_split(X, y, indices, train_size=0.70)
 
 forest = ensemble.RandomForestClassifier(n_estimators=30)
 forest = forest.fit(X_train, y_train)
-y_pred = forest.predict(X_test)
-print "Random forest F1 score: %f" % metrics.f1_score(y_test, y_pred)
+print "Random forest test accuracy: %f" % forest.score(X_test, y_test)
 
 predictions = [tree.predict(X) for tree in forest.estimators_]
 votes = pd.DataFrame.from_items(zip(range(len(forest.estimators_)), predictions))
@@ -87,22 +87,54 @@ def by_all_nodes():
 
     return kmeans
 
-def by_leaf_nodes():
-    node_paths = forest.apply(X)
-    X_for_paths = X.sample(n = 20)
+def to_leaf_space(X):
+    leaf_nodes = pd.DataFrame(forest.apply(X))
+    r    = range(len(X))
+    ones = [1 for i in r]
+    return sparse.hstack([sparse.csr_matrix((ones, (r, leaf_nodes[j]))) for j in range(len(forest.estimators_))])
 
-    with open("results/path-neighborhoods.org", "w") as f:
+
+def by_leaf_nodes():
+    activations = to_leaf_space(X).tocsr()
+    train_indices = pd.DataFrame(range(len(X))).sample(n = 1000)[0].tolist()
+    activations_train = activations[train_indices,:]
+
+    n_clusters = 50
+
+    kmeans = KMeans(n_clusters = n_clusters).fit(activations_train)
+    clusters = kmeans.predict(activations)
+    activations_dist = kmeans.transform(activations)
+
+    with open("results/leaf-node-clusters.org", "w") as f:
         print >> f, "* Clusters", "\n"
 
-        for i in range(len(X_for_paths)):
-            # FIXME: Apparently, this is too slow
-            dists = pd.Series([sum(node_paths[i] != node_paths[j]) for j in range(len(X))])
-            close = original_data[dists <= 26]
-            if (len(close) <= 10):
-                s = close
-            else:
-                s = close.sample(n = 10)
-            print >> f, "** Cluster", i, ", mean dist = ", dists.mean(), ", sd = ", dists.std(), ", # < 27 = ", len(close), "\n"
+        for i in range(n_clusters):
+            idx = clusters == i
+            cluster_scores = score[idx]
+            mean_score = cluster_scores.mean()
+            dists_to_centroid = pd.DataFrame(activations_dist[idx])[i]
+            mean_dist_to_centroid = dists_to_centroid.mean()
+            cluster_scores.hist()
+            plt.savefig("results/leaf-node-cluster-%02d-scores.png" % i)
+            plt.clf()
+            print >> f, "** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n"
+            cluster = original_data[idx]
+            s = cluster.sample(n = min(5, len(cluster)))
             for p in range(len(s)):
-                print >> f, s.iloc[p,:], "\n"
+                print >> f, s.iloc[p]
                 print >> f, "Weight =", score[s.iloc[p].name], "\n"
+
+    # with open("results/leaf-neighborhoods.org", "w") as f:
+    #     print >> f, "* Clusters", "\n"
+
+    #     for i in range(len(sample)):
+    #         dists = (leaf_nodes != leaf_nodes.iloc[i,:]).transpose().sum()
+    #         close = original_data[dists <= 26]
+    #         if (len(close) <= 10):
+    #             s = close
+    #         else:
+    #             s = close.sample(n = 10)
+    #         print >> f, "** Cluster", i, ", mean dist = ", dists.mean(), ", sd = ", dists.std(), ", # < 27 = ", len(close), "\n"
+    #         for p in range(len(s)):
+    #             print >> f, s.iloc[p,:],
+    #             print >> f, "Weight =", score[s.iloc[p].name], "\n"
