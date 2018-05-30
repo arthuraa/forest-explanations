@@ -100,6 +100,11 @@ def to_leaf_space(X):
                           for j in range(len(forest.estimators_))])
 
 
+def statistical_dist(X, idx, col):
+    counts_X    = X[col].value_counts(normalize = True)
+    counts_Xsub = X[idx][col].value_counts(normalize = True)
+    return counts_X.subtract(counts_Xsub, fill_value = 0.0).abs().sum() / 2
+
 def by_leaf_nodes():
     activations = to_leaf_space(X).tocsr()
     train_indices = pd.DataFrame(range(len(X))).sample(n = 1000)[0].tolist()
@@ -143,6 +148,10 @@ def by_leaf_nodes():
             # Print some cluster statistics and samples
             print >> f, "** Cluster %02d, size = %d, mean score = %.03f, dist to center = %.03f\n" % \
                 (i, len(cluster), mean_score, mean_dist_to_centroid)
+            print >> f, "*** Statistics\n"
+            for col in original_data.columns:
+                print >> f, "%s: %.04f" % (col, statistical_dist(original_data, idx, col))
+            print >> f, "\n*** Samples\n"
             s = cluster.sample(n = min(5, len(cluster)))
             for p in range(len(s)):
                 print >> f, s.iloc[p]
