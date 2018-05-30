@@ -91,7 +91,8 @@ def to_leaf_space(X):
     leaf_nodes = pd.DataFrame(forest.apply(X))
     r    = range(len(X))
     ones = [1 for i in r]
-    return sparse.hstack([sparse.csr_matrix((ones, (r, leaf_nodes[j]))) for j in range(len(forest.estimators_))])
+    return sparse.hstack([sparse.csr_matrix((ones, (r, leaf_nodes[j])))
+                          for j in range(len(forest.estimators_))])
 
 
 def by_leaf_nodes():
@@ -117,12 +118,13 @@ def by_leaf_nodes():
             cluster_scores.hist()
             plt.savefig("results/leaf-node-cluster-%02d-scores.png" % i)
             plt.clf()
-            print >> f, "** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n"
             cluster = original_data[idx]
+            print >> f, "** Cluster %02d, size = %d, mean score = %.03f, dist to center = %.03f\n" % \
+                (i, len(cluster), mean_score, mean_dist_to_centroid)
             s = cluster.sample(n = min(5, len(cluster)))
             for p in range(len(s)):
                 print >> f, s.iloc[p]
-                print >> f, "Weight =", score[s.iloc[p].name], "\n"
+                print >> f, "Weight = %.00f\n" % score[s.iloc[p].name]
 
     # with open("results/leaf-neighborhoods.org", "w") as f:
     #     print >> f, "* Clusters", "\n"
