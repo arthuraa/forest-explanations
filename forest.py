@@ -11,6 +11,11 @@ import matplotlib.pyplot as plt
 
 import adult as adult
 
+import graphviz
+
+import cgi
+from subprocess import call
+
 original_data = adult.original
 X = adult.binary
 y = adult.labels
@@ -22,7 +27,7 @@ forest = ensemble.RandomForestClassifier(n_estimators=30)
 forest = forest.fit(X_train, y_train)
 print "Random forest test accuracy: %f" % forest.score(X_test, y_test)
 
-predictions = [tree.predict(X) for tree in forest.estimators_]
+predictions = [t.predict(X) for t in forest.estimators_]
 votes = pd.DataFrame.from_items(zip(range(len(forest.estimators_)), predictions))
 score = votes.transpose().sum()
 plt.figure(1)
@@ -115,10 +120,27 @@ def by_leaf_nodes():
             mean_score = cluster_scores.mean()
             dists_to_centroid = pd.DataFrame(activations_dist[idx])[i]
             mean_dist_to_centroid = dists_to_centroid.mean()
-            cluster_scores.hist()
-            plt.savefig("results/leaf-node-cluster-%02d-scores.png" % i)
-            plt.clf()
             cluster = original_data[idx]
+
+            # Save histogram of weights in cluster
+            cluster_scores.hist()
+            plt.savefig("results/leaf-node-cluster-scores-%02d.png" % i)
+            plt.clf()
+
+            # Represent cluster as small decision tree
+            t = tree.DecisionTreeClassifier(max_depth = 4)
+            t = t.fit(X, idx)
+            out_file = "results/leaf-node-cluster-tree-%02d" % i
+            tree.export_graphviz(t, out_file = out_file + ".dot",
+                                 feature_names = [cgi.escape(s) for s in X.columns],
+                                 filled = True,
+                                 rounded = True,
+                                 special_characters = True)
+            with open(out_file + ".png", "w") as dot_file:
+                call(["dot", "-Tpng", out_file + ".dot"], stdout=dot_file)
+            call(["rm", out_file + ".dot"])
+
+            # Print some cluster statistics and samples
             print >> f, "** Cluster %02d, size = %d, mean score = %.03f, dist to center = %.03f\n" % \
                 (i, len(cluster), mean_score, mean_dist_to_centroid)
             s = cluster.sample(n = min(5, len(cluster)))
@@ -126,17 +148,6 @@ def by_leaf_nodes():
                 print >> f, s.iloc[p]
                 print >> f, "Weight = %.00f\n" % score[s.iloc[p].name]
 
-    # with open("results/leaf-neighborhoods.org", "w") as f:
-    #     print >> f, "* Clusters", "\n"
+    return activations, clusters, kmeans
 
-    #     for i in range(len(sample)):
-    #         dists = (leaf_nodes != leaf_nodes.iloc[i,:]).transpose().sum()
-    #         close = original_data[dists <= 26]
-    #         if (len(close) <= 10):
-    #             s = close
-    #         else:
-    #             s = close.sample(n = 10)
-    #         print >> f, "** Cluster", i, ", mean dist = ", dists.mean(), ", sd = ", dists.std(), ", # < 27 = ", len(close), "\n"
-    #         for p in range(len(s)):
-    #             print >> f, s.iloc[p,:],
-    #             print >> f, "Weight =", score[s.iloc[p].name], "\n"
+activations, clusters, kmeans = by_leaf_nodes()
