@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import pandas as pd
 import numpy as np
 import random
@@ -9,9 +11,8 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 
-import adult as adult
-
-import graphviz
+import adult
+import communities
 
 import cgi
 from subprocess import call
@@ -25,10 +26,10 @@ X_train, X_test, y_train, y_test, indices_train, indices_test = model_selection.
 
 forest = ensemble.RandomForestClassifier(n_estimators=30)
 forest = forest.fit(X_train, y_train)
-print "Random forest test accuracy: %f" % forest.score(X_test, y_test)
+print("Random forest test accuracy: %f" % forest.score(X_test, y_test))
 
 predictions = [t.predict(X) for t in forest.estimators_]
-votes = pd.DataFrame.from_items(zip(range(len(forest.estimators_)), predictions))
+votes = pd.DataFrame.from_dict(dict(zip(range(len(forest.estimators_)), predictions)))
 score = votes.transpose().sum()
 plt.figure(1)
 score.hist()
@@ -42,7 +43,7 @@ def by_votes():
     votes_dist = pd.DataFrame(kmeans.transform(votes))
 
     with open("results/vote-clusters.org", "w") as f:
-        print >> f, "* Clusters", "\n"
+        print("* Clusters", "\n", file = f)
 
         for i in range(10):
             idx = clusters == i
@@ -53,11 +54,11 @@ def by_votes():
             cluster_scores.hist()
             plt.savefig("results/vote-cluster-%d-scores.png" % i)
             plt.clf()
-            print >> f, "** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n"
+            print("** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n", file = f)
             s = original_data[idx].sample(n = 5)
             for p in range(len(s)):
-                print >> f, s.iloc[p]
-                print >> f, "Weight =", score[s.iloc[p].name], "\n"
+                print(s.iloc[p], file = f)
+                print("Weight =", score[s.iloc[p].name], "\n", file = f)
 
     return kmeans
 
@@ -73,7 +74,7 @@ def by_all_nodes():
     activations_dist = kmeans.transform(activations)
 
     with open("results/all-node-clusters.org", "w") as f:
-        print >> f, "* Clusters", "\n"
+        print("* Clusters", "\n", file = f)
 
         for i in range(10):
             idx = clusters == i
@@ -84,11 +85,11 @@ def by_all_nodes():
             cluster_scores.hist()
             plt.savefig("results/all-node-cluster-%d-scores.png" % i)
             plt.clf()
-            print >> f, "** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n"
+            print("** Cluster", i, ", mean score =", mean_score, ", dist to center =", mean_dist_to_centroid, "\n", file = f)
             s = original_data[idx].sample(n = 5)
             for p in range(len(s)):
-                print >> f, s.iloc[p]
-                print >> f, "Weight =", score[s.iloc[p].name], "\n"
+                print(s.iloc[p], file = f)
+                print("Weight =", score[s.iloc[p].name], "\n", file = f)
 
     return kmeans
 
@@ -106,18 +107,18 @@ def total_variation(X, idx, col):
     return counts_X.subtract(counts_Xsub, fill_value = 0.0).abs().sum() / 2
 
 def by_leaf_nodes():
-    activations = to_leaf_space(X).tocsr()
-    train_indices = pd.DataFrame(range(len(X))).sample(n = 1000)[0].tolist()
-    activations_train = activations[train_indices,:]
+    to_leaf_space = preprocessing.OneHotEncoder().fit(forest.apply(X))
+    activations = to_leaf_space.transform(forest.apply(X))
+    X_train = X.sample(n = 1000)
 
     n_clusters = 50
 
-    kmeans = KMeans(n_clusters = n_clusters).fit(activations_train)
+    kmeans = KMeans(n_clusters = n_clusters).fit(to_leaf_space.transform(forest.apply(X_train)))
     clusters = kmeans.predict(activations)
     activations_dist = kmeans.transform(activations)
 
     with open("results/leaf-node-clusters.org", "w") as f:
-        print >> f, "* Clusters", "\n"
+        print("* Clusters", "\n", file = f)
 
         for i in range(n_clusters):
             idx = clusters == i
@@ -147,16 +148,16 @@ def by_leaf_nodes():
             call(["rm", out_file + ".dot"])
 
             # Print some cluster statistics and samples
-            print >> f, "** Cluster %02d, size = %d, mean score = %.03f, dist to center = %.03f\n" % \
-                (i, len(cluster), mean_score, mean_dist_to_centroid)
-            print >> f, "*** Statistics\n"
+            print("** Cluster %02d, size = %d, mean score = %.03f, dist to center = %.03f\n" % \
+                  (i, len(cluster), mean_score, mean_dist_to_centroid), file = f)
+            print("*** Statistics\n", file = f)
             for col in original_data.columns:
-                print >> f, "%s: %.04f" % (col, total_variation(original_data, idx, col))
-            print >> f, "\n*** Samples\n"
+                print("%s: %.04f" % (col, total_variation(original_data, idx, col)), file = f)
+            print("\n*** Samples\n", file = f)
             s = cluster.sample(n = min(5, len(cluster)))
             for p in range(len(s)):
-                print >> f, s.iloc[p]
-                print >> f, "Weight = %.00f\n" % score[s.iloc[p].name]
+                print(s.iloc[p], file = f)
+                print("Weight = %.00f\n" % score[s.iloc[p].name], file = f)
 
     return activations, clusters, kmeans
 
