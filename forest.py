@@ -133,7 +133,8 @@ def by_leaf_nodes():
             plt.clf()
 
             # Represent cluster as small decision tree
-            t = tree.DecisionTreeClassifier(max_depth = 4)
+            t = tree.DecisionTreeClassifier(max_depth = 6,
+                                            max_leaf_nodes = 7, criterion = 'gini')
             t = t.fit(X, idx)
             out_file = "results/leaf-node-cluster-tree-%02d" % i
             tree.export_graphviz(t, out_file = out_file + ".dot",
