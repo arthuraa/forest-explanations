@@ -10,7 +10,6 @@ from sklearn import linear_model, model_selection, metrics, tree
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans, AgglomerativeClustering
-from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 

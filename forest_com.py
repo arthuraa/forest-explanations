@@ -149,6 +149,6 @@ class ForestClusters():
                         print(s.iloc[p], file = f)
                         print("Weight = %.00f\n" % votes[X.index.get_loc(s.iloc[p].name)], file = f)
 
-c = ForestClusters(forest)
-c.fit(X)
-c.summarize(X_test, y_test, path = 'results-com')
+# c = ForestClusters(forest)
+# c.fit(X)
+# c.summarize(X_test, y_test, path = 'results-com')
