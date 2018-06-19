@@ -24,47 +24,22 @@ def buckets(X):
 def total_variation(X1, X2):
     return X1.subtract(X2, fill_value = 0.0).abs().sum() / 2
 
-# TODO Allow to mix categorical and non-categorical features
-#
-# Maybe this wouldn't be a problem if we allowed arbitrary encoding functions
-# instead of just one hot...
-class Forest():
-    def __init__(self, n_estimators=10, categorical_features = []):
-        self.encoder = OneHotEncoder(categorical_features = categorical_features)
-        self.forest = RandomForestClassifier(n_estimators = n_estimators)
+def votes(forest, X):
+    predictions = [t.predict(X) for t in forest.estimators_]
+    votes = pd.DataFrame.from_dict(dict(zip(range(len(forest.estimators_)), predictions)))
+    return votes.transpose().sum()
 
-    def fit(self, X, y):
-        self.encoder.fit(X)
-        self.forest.fit(self.encoder.transform(X), y)
-        return self
-
-    def predict(self, X):
-        return self.forest.predict(self.encoder.transform(X))
-
-    def votes(self, X):
-        # FIXME There is probably a more clever way of doing this
-        X_enc = self.encoder.transform(X)
-        predictions = [t.predict(X_enc) for t in self.forest.estimators_]
-        votes = pd.DataFrame.from_dict(dict(zip(range(len(self.forest.estimators_)), predictions)))
-        return votes.transpose().sum()
-
-    def score(self, X, y):
-        return self.forest.score(self.encoder.transform(X), y)
-
-    def apply(self, X):
-        return self.forest.apply(X)
 # TODO
 # - Allow subset of columns?
 # - Do something about categorical features
 class ForestClusters():
-    def __init__(self, model, n_clusters = 20):
+    def __init__(self, model, encoder, n_clusters = 20):
         self.model = model
-        self.encoder = OneHotEncoder()
+        self.encoder = encoder
         self.kmeans = KMeans(n_clusters = n_clusters)
 
-    def fit(self, X):
+    def fit(self, X, n = 1.0):
         leaves = self.model.apply(X)
-        self.encoder.fit(leaves)
         self.kmeans.fit(self.encoder.transform(leaves))
 
     def predict(self, X):
