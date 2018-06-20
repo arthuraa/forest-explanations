@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import pandas as pd
 
-data = pd.read_csv('communities.csv', header = 0, na_values = '?')
+data = pd.read_csv('communities.data', header = 0, na_values = '?')
 
 uninformative = [
     'state',
