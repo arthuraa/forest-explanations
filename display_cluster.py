@@ -12,10 +12,13 @@ import communities
 import sklearn
 from forest_clusters import ForestClusters, buckets, total_variation, votes
 
+def normalized_wasserstein(u, v):
+    return wasserstein_distance(u, v) / u.std()
+
 def distance(u, v, ignore_nan=True):
     if len(u) == 0 or len(v) == 0:
         return np.nan
-    elif u.dtype.name == 'float64' or u.dtype.name == 'int64':
+    elif np.issubdtype(u.dtype, np.number):
         u_nanidx = np.isnan(u)
         v_nanidx = np.isnan(v)
         u_probnan = u_nanidx.mean()
@@ -29,9 +32,9 @@ def distance(u, v, ignore_nan=True):
             else:
                 return diff_nan
         elif ignore_nan:
-            return wasserstein_distance(u_nonnan, v_nonnan)
+            return normalized_wasserstein(u_nonnan, v_nonnan)
         else:
-            return diff_nan + wasserstein_distance(u_nonnan, v_nonnan)
+            return diff_nan + normalized_wasserstein(u_nonnan, v_nonnan)
     else:
         u = u.value_counts(normalize = True, dropna = False).sort_index()
         v = v.value_counts(normalize = True, dropna = False).sort_index()
@@ -127,6 +130,10 @@ def display_cluster(clusters, X, X_test, y_test,
                            (curr_col, distance))
             axes.grid()
             axes.hist([distr_cluster, distr], density = True, bins = 20, label = labels)
+            if np.issubdtype(distr.dtype, np.number):
+                plt.xticks(rotation = 'horizontal')
+            else:
+                plt.xticks(rotation = 'vertical')
             axes.legend()
             plt.ion()
             out3 = widgets.Output()
