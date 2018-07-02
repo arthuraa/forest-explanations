@@ -36,26 +36,34 @@ class ForestClusters():
     def __init__(self, model, encoder, n_clusters = 20):
         self.model = model
         self.encoder = encoder
-        self.kmeans = KMeans(n_clusters = n_clusters)
+        self.clusters = KMeans(n_clusters = n_clusters)
 
     def fit(self, X, n = 1.0):
+        self.points = X
         leaves = self.model.apply(X)
-        self.kmeans.fit(self.encoder.transform(leaves))
+        self.clusters.fit(self.encoder.transform(leaves))
 
     def predict(self, X):
         leaves = self.model.apply(X)
         leaves = self.encoder.transform(leaves)
-        return self.kmeans.predict(leaves)
+        return self.clusters.predict(leaves)
+
+    def fit_predict(self, X):
+        self.points = X
+        leaves = self.model.apply(X)
+        leaves = self.encoder.transform(leaves)
+        self.results = self.clusters.fit_predict(leaves)
+        return self.results
 
     def transform(self, X):
         leaves = self.model.apply(X)
         leaves = self.encoder.transform(leaves)
-        return self.kmeans.transform(leaves)
+        return self.clusters.transform(leaves)
 
     def predict_transform(self, X):
         leaves = self.model.apply(X)
         leaves = self.encoder.transform(leaves)
-        return self.kmeans.predict(leaves), self.kmeans.transform(leaves)
+        return self.clusters.predict(leaves), self.clusters.transform(leaves)
 
     def summarize(self, X, y, path="."):
         clusters, distances = self.predict_transform(X)
@@ -74,7 +82,7 @@ class ForestClusters():
 
             print("* Clusters\n", file = f)
 
-            for i in range(self.kmeans.n_clusters):
+            for i in range(self.clusters.n_clusters):
                 idx = clusters == i
                 cluster_votes = votes[idx]
                 mean_votes = cluster_votes.mean()

@@ -40,7 +40,7 @@ def distance(u, v, ignore_nan=True):
         v = v.value_counts(normalize = True, dropna = False).sort_index()
         return total_variation(u, v)
 
-def display_cluster(clusters, X, X_test, y_test,
+def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
                     encode_features=None, present_features=None,
                     feature_description=None):
     orig_X = X
@@ -51,11 +51,8 @@ def display_cluster(clusters, X, X_test, y_test,
     if encode_features:
         X = encode_features(X)
         X_test = encode_features(X_test)
-    vs = votes(clusters.model, X)
-    vs_test = votes(clusters.model, X_test)
-
-    clusters_gen, distances_gen = clusters.predict_transform(X)
-    clusters_test, distances_test = clusters.predict_transform(X_test)
+    vs = votes(model, X)
+    vs_test = votes(model, X_test)
 
     def cluster_desc(c):
         orig_X_cluster = orig_X_test[clusters_test == c]
@@ -72,20 +69,20 @@ def display_cluster(clusters, X, X_test, y_test,
                 'y': y_cluster,
                 'votes': vs_cluster,
                 'Size': len(X_cluster),
-                'Accuracy': clusters.model.score(X_cluster, y_cluster) if len(X_cluster) != 0 else '--',
+                'Accuracy': model.score(X_cluster, y_cluster) if len(X_cluster) != 0 else '--',
                 'distances': distances}
 
-    cluster_descs = [cluster_desc(c) for c in range(clusters.kmeans.n_clusters)]
+    cluster_descs = [cluster_desc(c) for c in range(n_clusters)]
 
     with pd.option_context('display.max_rows', None):
         display(pd.DataFrame([OrderedDict([('Size', d['Size']),
                                            ('Accuracy', d['Accuracy']),
-                                           ('Mean Votes', d['votes'].mean() / clusters.model.n_estimators)])
+                                           ('Mean Votes', d['votes'].mean() / model.n_estimators)])
                               for d in cluster_descs]))
 
     cluster_widget = widgets.BoundedIntText(value = 0,
                                             min = 0,
-                                            max = clusters.kmeans.n_clusters,
+                                            max = n_clusters,
                                             step = 1,
                                             description = 'Cluster')
 
@@ -100,9 +97,9 @@ def display_cluster(clusters, X, X_test, y_test,
         vs_cluster = desc['votes']
         if feature_description:
             print(feature_description[curr_col])
-        print('Cluster accuracy: %.03f' % clusters.model.score(X_cluster, y_cluster))
+        print('Cluster accuracy: %.03f' % model.score(X_cluster, y_cluster))
         print('Cluster size: %d/%d' % (len(X_cluster), len(X_test)))
-        print('Cluster mean votes: %.03f' % (vs_cluster.mean() / clusters.model.n_estimators))
+        print('Cluster mean votes: %.03f' % (vs_cluster.mean() / model.n_estimators))
         distances = desc['distances']
         out1 = widgets.Output()
         with out1:
