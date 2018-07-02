@@ -80,7 +80,7 @@ def display_cluster(clusters, X, X_test, y_test,
     with pd.option_context('display.max_rows', None):
         display(pd.DataFrame([OrderedDict([('Size', d['Size']),
                                            ('Accuracy', d['Accuracy']),
-                                           ('Mean Votes', d['votes'].mean())])
+                                           ('Mean Votes', d['votes'].mean() / clusters.model.n_estimators)])
                               for d in cluster_descs]))
 
     cluster_widget = widgets.BoundedIntText(value = 0,
@@ -102,7 +102,7 @@ def display_cluster(clusters, X, X_test, y_test,
             print(feature_description[curr_col])
         print('Cluster accuracy: %.03f' % clusters.model.score(X_cluster, y_cluster))
         print('Cluster size: %d/%d' % (len(X_cluster), len(X_test)))
-        print('Cluster mean votes: %.03f' % vs_cluster.mean())
+        print('Cluster mean votes: %.03f' % (vs_cluster.mean() / clusters.model.n_estimators))
         distances = desc['distances']
         out1 = widgets.Output()
         with out1:
