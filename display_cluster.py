@@ -40,6 +40,69 @@ def distance(u, v, ignore_nan=True):
         v = v.value_counts(normalize = True, dropna = False).sort_index()
         return total_variation(u, v)
 
+class ForestPath:
+    def __init__(self, model, tree_idx, feature_names, node):
+        tree = model.estimators_[tree_idx].tree_
+        path = []
+        first_node = node
+        direction = None
+        while node != 0:
+            feature = feature_names[tree.feature[node]]
+            threshold = tree.threshold[node]
+            path = [(node, feature, threshold, direction)] + path
+            right_idx = np.where(tree.children_right == node)[0]
+            left_idx  = np.where(tree.children_left  == node)[0]
+            if len(right_idx) != 0:
+                node = right_idx[0]
+                direction = 'right'
+            else: # The node must be a left child
+                node = left_idx[0]
+                direction = 'left'
+        feature = feature_names[tree.feature[0]]
+        threshold = tree.threshold[0]
+        path = [(0, feature, threshold, direction)] + path
+        self.model = model
+        self.last_node = node
+        self.tree = tree_idx
+        self.path = path
+
+    def __repr__(self):
+        res = "Tree %d, path %d\n" % (self.tree, self.last_node)
+        for node, feature, threshold, direction in self.path[:-1]:
+            if direction == 'left':
+                res = res + ("%s < %0.3f\n" % (feature, threshold))
+            else:
+                res = res + ("%s >= %0.3f\n" % (feature, threshold))
+        return res
+
+class InfluentialPaths:
+    """Compute the most influential paths for each cluster"""
+    # FIXME: Extract feature names from X.columns?
+    def __init__(self, model, feature_names, X, clusters, n_clusters):
+        leaves = model.apply(X)
+        path_scores = []
+        for c in range(n_clusters):
+            c_scores = pd.Series([])
+            leaves_cluster = pd.DataFrame(leaves[clusters == c, :])
+            for tree in range(model.n_estimators):
+                leaves_cluster_tree = leaves_cluster[tree].apply(lambda path: (tree, path))
+                c_scores = c_scores.append(leaves_cluster_tree.value_counts(normalize = True))
+            path_scores = path_scores + [c_scores.sort_values(ascending = False)]
+        self.model = model
+        self.feature_names = feature_names
+        self.points = X
+        self.clusters = clusters
+        self.n_clusters = n_clusters
+        self.scores = path_scores
+
+    def __getitem__(self, pair):
+        """Get the rank-th most influential path associated with cluster"""
+        cluster, rank = pair
+        tree, node = self.scores[cluster].index[rank]
+        proportion = self.scores[cluster].iloc[rank]
+        return ForestPath(self.model, tree, self.feature_names, node), proportion
+
+
 def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
                     encode_features=None, present_features=None,
                     feature_description=None):
@@ -53,6 +116,8 @@ def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
         X_test = encode_features(X_test)
     vs = votes(model, X)
     vs_test = votes(model, X_test)
+
+    influential_paths = InfluentialPaths(model, X_test.columns, X_test, clusters_test, n_clusters)
 
     def cluster_desc(c):
         orig_X_cluster = orig_X_test[clusters_test == c]
@@ -89,7 +154,9 @@ def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
     column_widget = widgets.Dropdown(options = orig_X.columns,
                                      description = 'Column')
 
-    def do_display(cluster, curr_col):
+    rank_widget = widgets.IntText(value = 0, description = 'Path rank')
+
+    def do_display(cluster, curr_col, rank):
         desc = cluster_descs[cluster]
         orig_X_cluster = desc['orig_X']
         X_cluster = desc['X']
@@ -105,7 +172,6 @@ def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
         with out1:
             with pd.option_context('display.max_rows', None):
                 display(distances)
-        plt.ioff()
         fig, axes = plt.subplots(figsize = (5, 5))
         axes.set_title('Distribution of votes')
         axes.grid()
@@ -114,9 +180,8 @@ def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
         axes.legend()
         out2 = widgets.Output()
         with out2:
-            display(fig)
+            plt.show(fig)
         ws = [out1, out2]
-        plt.ion()
         if curr_col:
             plt.ioff()
             fig, axes = plt.subplots(figsize = (5, 5))
@@ -135,9 +200,11 @@ def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
             plt.ion()
             out3 = widgets.Output()
             with out3:
-                display(fig)
+                plt.show(fig)
             ws.append(out3)
         display(widgets.HBox(ws, layout = {'height': '700px'}))
+        display(influential_paths.scores[cluster].head(10))
+        display(influential_paths[cluster, rank])
 
-    w = widgets.interactive(do_display, cluster = cluster_widget, curr_col = column_widget)
+    w = widgets.interactive(do_display, cluster = cluster_widget, curr_col = column_widget, rank = rank_widget)
     display(w)
