@@ -62,12 +62,12 @@ class ForestPath:
         threshold = tree.threshold[0]
         path = [(0, feature, threshold, direction)] + path
         self.model = model
-        self.last_node = node
+        self.first_node = first_node
         self.tree = tree_idx
         self.path = path
 
     def __repr__(self):
-        res = "Tree %d, path %d\n" % (self.tree, self.last_node)
+        res = "Tree %d, path %d\n" % (self.tree, self.first_node)
         for node, feature, threshold, direction in self.path[:-1]:
             if direction == 'left':
                 res = res + ("%s < %0.3f\n" % (feature, threshold))
