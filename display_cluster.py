@@ -133,8 +133,7 @@ class ForestPath:
 
 class InfluentialPaths:
     """Compute the most influential paths for each cluster"""
-    # FIXME: Extract feature names from X.columns?
-    def __init__(self, model, leaves, feature_names, X, clusters, n_clusters):
+    def __init__(self, model, leaves, X, clusters, n_clusters):
         path_scores = []
         for c in range(n_clusters):
             c_scores = pd.Series([])
@@ -144,7 +143,6 @@ class InfluentialPaths:
                 c_scores = c_scores.append(leaves_cluster_tree.value_counts(normalize = True))
             path_scores = path_scores + [c_scores.sort_values(ascending = False)]
         self.model = model
-        self.feature_names = feature_names
         self.points = X
         self.clusters = clusters
         self.n_clusters = n_clusters
@@ -155,7 +153,7 @@ class InfluentialPaths:
         cluster, rank = pair
         tree, node = self.scores[cluster].index[rank]
         proportion = self.scores[cluster].iloc[rank]
-        return ForestPath(self.model, tree, self.feature_names, node), proportion
+        return ForestPath(self.model, tree, self.points.columns, node), proportion
 
 def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clusters,
                     encode_features=None, present_features=None,
@@ -171,7 +169,7 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
     vs = votes(model, X)
     vs_test = votes(model, X_test)
 
-    influential_paths = InfluentialPaths(model, leaves_test, X_test.columns, X_test, clusters_test, n_clusters)
+    influential_paths = InfluentialPaths(model, leaves_test, X_test, clusters_test, n_clusters)
 
     def cluster_desc(c):
         orig_X_cluster = orig_X_test[clusters_test == c]
