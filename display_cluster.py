@@ -134,26 +134,33 @@ class ForestPath:
 class InfluentialPaths:
     """Compute the most influential paths for each cluster"""
     def __init__(self, model, leaves, X, clusters, n_clusters):
-        path_scores = []
-        for c in range(n_clusters):
-            c_scores = pd.Series([])
-            leaves_cluster = pd.DataFrame(leaves[clusters == c, :])
-            for tree in range(model.n_estimators):
-                leaves_cluster_tree = leaves_cluster[tree].apply(lambda path: (tree, path))
-                c_scores = c_scores.append(leaves_cluster_tree.value_counts(normalize = True))
-            path_scores = path_scores + [c_scores.sort_values(ascending = False)]
+        leaves = pd.DataFrame(leaves)
+        total_counts = {tree: leaves[tree].value_counts()
+                        for tree in range(model.n_estimators)}
+        def count_cluster(c):
+            leaves_cluster = leaves[clusters == c]
+            flattened_leaves = [(tree, path)
+                                for (_, tree), path in np.ndenumerate(leaves_cluster)]
+            size = len(leaves_cluster)
+            cluster_to_path = pd.Series(flattened_leaves).value_counts()
+            path_to_cluster = pd.Series({(tree, path): cluster_to_path[(tree, path)] / total_counts[tree][path]
+                                         for (tree, path) in cluster_to_path.index})
+            scores = pd.DataFrame({'Cluster to path': cluster_to_path / size,
+                                   'Path to cluster': path_to_cluster})
+            return scores.sort_values(by = ['Cluster to path'], ascending = False)
+
+        cluster_counts = {c: count_cluster(c) for c in range(n_clusters)}
         self.model = model
         self.points = X
         self.clusters = clusters
         self.n_clusters = n_clusters
-        self.scores = path_scores
+        self.scores = cluster_counts
 
     def __getitem__(self, pair):
         """Get the rank-th most influential path associated with cluster"""
         cluster, rank = pair
         tree, node = self.scores[cluster].index[rank]
-        proportion = self.scores[cluster].iloc[rank]
-        return ForestPath(self.model, tree, self.points.columns, node), proportion
+        return ForestPath(self.model, tree, self.points.columns, node)
 
 def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clusters,
                     encode_features=None, present_features=None,
