@@ -40,6 +40,62 @@ def distance(u, v, ignore_nan=True):
         v = v.value_counts(normalize = True, dropna = False).sort_index()
         return total_variation(u, v)
 
+class CompressedTree:
+    def __init__(self, tree):
+        classes = -np.ones(tree.node_count, dtype=np.int64)
+        compressed = np.zeros(tree.node_count, dtype=np.int64)
+
+        def compress(ancestor, node):
+            left = tree.children_left[node]
+            right = tree.children_right[node]
+            if (left == right):
+                # We are at a leaf
+                compressed[node] = ancestor
+            else:
+                compress(ancestor, left)
+                compress(ancestor, right)
+
+        def mark(node):
+            left = tree.children_left[node]
+            right = tree.children_right[node]
+            if left != right:
+                # We are in an internal node
+                mark(left)
+                mark(right)
+                if classes[left] == classes[right]:
+                    classes[node] = classes[left]
+                else:
+                    classes[node] = -1
+                    if classes[left] != -1:
+                        compress(left, left)
+                    if classes[right] != -1:
+                        compress(right, right)
+            else:
+                # We are at a leaf
+                classes[node] = np.argmax(tree.value[node, 0])
+
+        mark(0)
+        self.classes = classes
+        self.compressed = compressed
+
+class CompressedForest:
+    def __init__(self, forest):
+        self.forest = forest
+        self.compressed = [CompressedTree(tree.tree_)
+                           for tree in forest.estimators_]
+
+    def apply(self, X):
+        leaves = self.forest.apply(X)
+        return np.array([[self.compressed[t].compressed[leaves[i, t]]
+                          for t in range(self.forest.n_estimators)]
+                         for i in range(len(X))])
+
+    def score(self, X, y):
+        return self.forest.score(X, y)
+
+    def predict(self, X):
+        return self.forest.predict(X)
+
 class ForestPath:
     def __init__(self, model, tree_idx, feature_names, node):
         tree = model.estimators_[tree_idx].tree_
@@ -78,8 +134,7 @@ class ForestPath:
 class InfluentialPaths:
     """Compute the most influential paths for each cluster"""
     # FIXME: Extract feature names from X.columns?
-    def __init__(self, model, feature_names, X, clusters, n_clusters):
-        leaves = model.apply(X)
+    def __init__(self, model, leaves, feature_names, X, clusters, n_clusters):
         path_scores = []
         for c in range(n_clusters):
             c_scores = pd.Series([])
@@ -102,8 +157,7 @@ class InfluentialPaths:
         proportion = self.scores[cluster].iloc[rank]
         return ForestPath(self.model, tree, self.feature_names, node), proportion
 
-
-def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
+def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clusters,
                     encode_features=None, present_features=None,
                     feature_description=None):
     orig_X = X
@@ -117,7 +171,7 @@ def display_cluster(model, X, X_test, y_test, clusters_test, n_clusters,
     vs = votes(model, X)
     vs_test = votes(model, X_test)
 
-    influential_paths = InfluentialPaths(model, X_test.columns, X_test, clusters_test, n_clusters)
+    influential_paths = InfluentialPaths(model, leaves_test, X_test.columns, X_test, clusters_test, n_clusters)
 
     def cluster_desc(c):
         orig_X_cluster = orig_X_test[clusters_test == c]
