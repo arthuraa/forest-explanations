@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import random
 
-column_names = ["Age", "Workclass", "fnlwgt", "Education", "Education-Num", "Martial Status",
+column_names = ["Age", "Workclass", "fnlwgt", "Education", "Education-Num", "Marital Status",
                 "Occupation", "Relationship", "Race", "Sex", "Capital Gain", "Capital Loss",
                 "Hours per week", "Country", "Target"]
 
