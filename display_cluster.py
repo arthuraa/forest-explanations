@@ -145,8 +145,11 @@ class InfluentialPaths:
             cluster_to_path = pd.Series(flattened_leaves).value_counts()
             path_to_cluster = pd.Series({(tree, path): cluster_to_path[(tree, path)] / total_counts[tree][path]
                                          for (tree, path) in cluster_to_path.index})
+            path_votes      = pd.Series({(tree, path): np.argmax(model.estimators_[tree].tree_.value[path, 0])
+                                         for (tree, path) in cluster_to_path.index})
             scores = pd.DataFrame({'Cluster to path': cluster_to_path / size,
-                                   'Path to cluster': path_to_cluster})
+                                   'Path to cluster': path_to_cluster,
+                                   'Vote': path_votes})
             return scores.sort_values(by = ['Cluster to path'], ascending = False)
 
         cluster_counts = {c: count_cluster(c) for c in range(n_clusters)}
