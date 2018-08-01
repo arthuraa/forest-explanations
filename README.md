@@ -9,6 +9,7 @@ Requirements:
 - Sklearn
 - Matplotlib
 - Jupyter
+- Category Encoders (`category_encoders` on pip)
 
 Have a look at the examples by opening a Jupyter notebook and loading the
 notebook files.
