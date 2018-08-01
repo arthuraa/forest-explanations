@@ -3,7 +3,7 @@ from __future__ import print_function
 import matplotlib.pyplot as plt
 from IPython.display import HTML
 import ipywidgets as widgets
-from scipy.stats import wasserstein_distance
+from scipy.stats import wasserstein_distance, mode
 
 from collections import OrderedDict
 import pandas as pd
@@ -145,11 +145,18 @@ class InfluentialPaths:
             cluster_to_path = pd.Series(flattened_leaves).value_counts()
             path_to_cluster = pd.Series({(tree, path): cluster_to_path[(tree, path)] / total_counts[tree][path]
                                          for (tree, path) in cluster_to_path.index})
-            path_votes      = pd.Series({(tree, path): np.argmax(model.estimators_[tree].tree_.value[path, 0])
+
+            path_votes      = pd.Series({(tree, path):
+                                         np.argmax(model.estimators_[tree].tree_.value[path, 0])
                                          for (tree, path) in cluster_to_path.index})
-            scores = pd.DataFrame({'Cluster to path': cluster_to_path / size,
-                                   'Path to cluster': path_to_cluster,
-                                   'Vote': path_votes})
+            path_strength = pd.Series({(tree, path):
+                                       model.estimators_[tree].tree_.value[path, 0, winner] /
+                                       model.estimators_[tree].tree_.weighted_n_node_samples[path]
+                                       for (tree, path), winner in path_votes.iteritems()})
+            scores = pd.DataFrame(OrderedDict([('Cluster to path', cluster_to_path / size),
+                                               ('Path to cluster', path_to_cluster),
+                                               ('Vote', path_votes.map(lambda idx: model.classes_[idx])),
+                                               ('Strength', path_strength)]))
             return scores.sort_values(by = ['Cluster to path'], ascending = False)
 
         cluster_counts = {c: count_cluster(c) for c in range(n_clusters)}
@@ -176,8 +183,9 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
     if encode_features:
         X = encode_features(X)
         X_test = encode_features(X_test)
-    vs = votes(model, X)
-    vs_test = votes(model, X_test)
+    vs = model.predict_proba(X)
+    vs_test = model.predict_proba(X_test)
+    pred_test = model.predict(X_test)
 
     influential_paths = InfluentialPaths(model, leaves_test, X_test, clusters_test, n_clusters)
 
@@ -186,6 +194,10 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
         X_cluster = X_test[clusters_test == c]
         y_cluster = y_test[clusters_test == c]
         vs_cluster = vs_test[clusters_test == c]
+        pred_cluster = pred_test[clusters_test == c]
+        winner = mode(pred_cluster)[0][0]
+        winner_idx = np.where(model.classes_ == winner)[0][0]
+        mean = np.mean(vs_cluster[:, winner_idx])
         distances = [{'Column': col,
                       'Distance': distance(orig_X[col], orig_X_cluster[col])}
                      for col in orig_X.columns]
@@ -195,17 +207,29 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
                 'X': X_cluster,
                 'y': y_cluster,
                 'votes': vs_cluster,
+                'mean': mean,
+                'predictions': pred_cluster,
+                'winner': winner,
+                'winner_idx': winner_idx,
                 'Size': len(X_cluster),
-                'Accuracy': model.score(X_cluster, y_cluster) if len(X_cluster) != 0 else '--',
+                'Accuracy': np.mean(pred_cluster == y_cluster) if len(X_cluster) != 0 else '--',
                 'distances': distances}
 
     cluster_descs = [cluster_desc(c) for c in range(n_clusters)]
 
     with pd.option_context('display.max_rows', None):
-        display(pd.DataFrame([OrderedDict([('Size', d['Size']),
-                                           ('Accuracy', d['Accuracy']),
-                                           ('Mean Votes', d['votes'].mean() / model.n_estimators)])
-                              for d in cluster_descs]))
+        if model.n_classes_ == 2:
+            display(pd.DataFrame([OrderedDict([('Size', d['Size']),
+                                               ('Accuracy', d['Accuracy']),
+                                               ('Mean Positive Prob.', d['mean'])])
+                                  for d in cluster_descs]))
+        else:
+            display(pd.DataFrame([OrderedDict([('Size', d['Size']),
+                                               ('Accuracy', d['Accuracy']),
+                                               ('Winner', d['winner']),
+                                               ('Mean Winner Prob.', d['mean'])])
+                                  for d in cluster_descs]))
+
 
     cluster_widget = widgets.BoundedIntText(value = 0,
                                             min = 0,
@@ -224,21 +248,22 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
         X_cluster = desc['X']
         y_cluster = desc['y']
         vs_cluster = desc['votes']
+        winner_cluster_idx = desc['winner_idx']
         if feature_description:
             print(feature_description[curr_col])
         print('Cluster accuracy: %.03f' % model.score(X_cluster, y_cluster))
         print('Cluster size: %d/%d' % (len(X_cluster), len(X_test)))
-        print('Cluster mean votes: %.03f' % (vs_cluster.mean() / model.n_estimators))
+        print('Cluster mean winner probability: %.03f' % desc['mean'])
         distances = desc['distances']
         out1 = widgets.Output()
         with out1:
             with pd.option_context('display.max_rows', None):
                 display(distances)
         fig, axes = plt.subplots(figsize = (5, 5))
-        axes.set_title('Distribution of votes')
+        axes.set_title('Distribution of scores')
         axes.grid()
         labels = ['Cluster %d' % cluster, 'General']
-        axes.hist([vs_cluster, vs], density = True, label = labels)
+        axes.hist([vs_cluster[:,winner_cluster_idx], vs[:,winner_cluster_idx]], density = True, label = labels)
         axes.legend()
         out2 = widgets.Output()
         with out2:
