@@ -218,17 +218,11 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
     cluster_descs = [cluster_desc(c) for c in range(n_clusters)]
 
     with pd.option_context('display.max_rows', None):
-        if model.n_classes_ == 2:
-            display(pd.DataFrame([OrderedDict([('Size', d['Size']),
-                                               ('Accuracy', d['Accuracy']),
-                                               ('Mean Positive Prob.', d['mean'])])
-                                  for d in cluster_descs]))
-        else:
-            display(pd.DataFrame([OrderedDict([('Size', d['Size']),
-                                               ('Accuracy', d['Accuracy']),
-                                               ('Winner', d['winner']),
-                                               ('Mean Winner Prob.', d['mean'])])
-                                  for d in cluster_descs]))
+        display(pd.DataFrame([OrderedDict([('Size', d['Size']),
+                                           ('Accuracy', d['Accuracy']),
+                                           ('Winner', d['winner']),
+                                           ('Mean Winner Prob.', d['mean'])])
+                              for d in cluster_descs]))
 
 
     cluster_widget = widgets.BoundedIntText(value = 0,
