@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import communities
 import sklearn
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from forest_clusters import ForestClusters, buckets, total_variation, votes
 
 def normalized_wasserstein(u, v):
@@ -98,7 +99,10 @@ class CompressedForest:
 
 class ForestPath:
     def __init__(self, model, tree_idx, feature_names, node):
-        tree = model.estimators_[tree_idx].tree_
+        if isinstance(model, RandomForestClassifier):
+            tree = model.estimators_[tree_idx].tree_
+        else:
+            tree = model.estimators_[tree_idx][0].tree_
         path = []
         first_node = node
         direction = None
@@ -126,10 +130,19 @@ class ForestPath:
         res = "Tree %d, path %d\n" % (self.tree, self.first_node)
         for node, feature, threshold, direction in self.path[:-1]:
             if direction == 'left':
-                res = res + ("%s < %0.3f\n" % (feature, threshold))
+                res = res + ("%s <= %0.3f\n" % (feature, threshold))
             else:
-                res = res + ("%s >= %0.3f\n" % (feature, threshold))
+                res = res + ("%s > %0.3f\n" % (feature, threshold))
         return res
+
+    def tree(self):
+        # FIXME Is there a way of merging this method with the initialization
+        # above?
+        if isinstance(model, RandomForestClassifier):
+            tree = model.estimators_[tree_idx].tree_
+        else:
+            tree = model.estimators_[tree_idx][0].tree_
+        return tree
 
 class InfluentialPaths:
     """Compute the most influential paths for each cluster"""
@@ -146,18 +159,33 @@ class InfluentialPaths:
             path_to_cluster = pd.Series({(tree, path): cluster_to_path[(tree, path)] / total_counts[tree][path]
                                          for (tree, path) in cluster_to_path.index})
 
-            path_votes      = pd.Series({(tree, path):
-                                         np.argmax(model.estimators_[tree].tree_.value[path, 0])
-                                         for (tree, path) in cluster_to_path.index})
-            path_strength = pd.Series({(tree, path):
-                                       model.estimators_[tree].tree_.value[path, 0, winner] /
-                                       model.estimators_[tree].tree_.weighted_n_node_samples[path]
-                                       for (tree, path), winner in path_votes.iteritems()})
-            scores = pd.DataFrame(OrderedDict([('Cluster to path', cluster_to_path / size),
-                                               ('Path to cluster', path_to_cluster),
-                                               ('Vote', path_votes.map(lambda idx: model.classes_[idx])),
-                                               ('Strength', path_strength)]))
-            return scores.sort_values(by = ['Cluster to path'], ascending = False)
+            if isinstance(model, RandomForestClassifier):
+                path_votes      = pd.Series({(tree, path):
+                                             np.argmax(model.estimators_[tree].tree_.value[path, 0])
+                                             for (tree, path) in cluster_to_path.index})
+                path_strength = pd.Series({(tree, path):
+                                           model.estimators_[tree].tree_.value[path, 0, winner] /
+                                           model.estimators_[tree].tree_.weighted_n_node_samples[path]
+                                           for (tree, path), winner in path_votes.iteritems()})
+                scores = pd.DataFrame(OrderedDict([('Cluster to path', cluster_to_path / size),
+                                                   ('Path to cluster', path_to_cluster),
+                                                   ('Vote', path_votes.map(lambda idx: model.classes_[idx])),
+                                                   ('Strength', path_strength)]))
+                return scores.sort_values(by = ['Cluster to path', 'Path to cluster'], ascending = False)
+            else:
+                path_norm_strength = pd.Series({(tree, path):
+                                                abs(model.estimators_[tree, 0].tree_.value[path, 0, 0] *
+                                                    cluster_to_path[(tree, path)])
+                                                for (tree, path) in cluster_to_path.index})
+                path_strength = pd.Series({(tree, path):
+                                           model.estimators_[tree, 0].tree_.value[path, 0, 0]
+                                           for (tree, path) in cluster_to_path.index})
+                scores = pd.DataFrame(OrderedDict([('Cluster to path', cluster_to_path / size),
+                                                   ('Path to cluster', path_to_cluster),
+                                                   ('Norm strength', path_norm_strength),
+                                                   ('Strength', path_strength)]))
+                return scores.sort_values(by = ['Norm strength'], ascending = False)
+
 
         cluster_counts = {c: count_cluster(c) for c in range(n_clusters)}
         self.model = model
@@ -254,7 +282,7 @@ def display_cluster(model, X, X_test, y_test, leaves_test, clusters_test, n_clus
             with pd.option_context('display.max_rows', None):
                 display(distances)
         fig, axes = plt.subplots(figsize = (5, 5))
-        axes.set_title('Distribution of scores')
+        axes.set_title('Distribution of scores for ' + str(desc['winner']))
         axes.grid()
         labels = ['Cluster %d' % cluster, 'General']
         axes.hist([vs_cluster[:,winner_cluster_idx], vs[:,winner_cluster_idx]], density = True, label = labels)

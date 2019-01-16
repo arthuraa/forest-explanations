@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import random
 
-column_names = ["Age", "Workclass", "fnlwgt", "Education", "Education-Num", "Marital Status",
-                "Occupation", "Relationship", "Race", "Sex", "Capital Gain", "Capital Loss",
-                "Hours per week", "Country", "Target"]
+column_names = ["age", "workclass", "fnlwgt", "education", "education_num", "marital_status",
+                "occupation", "relationship", "race", "sex", "capital_gain", "capital_loss",
+                "hours_per_week", "country", "target"]
 
 path = os.path.dirname(os.path.realpath(__file__))
 train_path = os.path.join(path, 'adult.data')
@@ -29,9 +29,11 @@ original_test = pd.read_csv(test_path,
 
 original = pd.concat([original_train, original_test], ignore_index=True)
 
+weights = original['fnlwgt']
+
 del original['fnlwgt']
-del original["Education"]
+del original["education"]
 
 binary = pd.get_dummies(original)
-labels = binary["Target"]
-binary = binary[binary.columns.difference(["Target"])]
+labels = binary["target"]
+binary = binary[binary.columns.difference(["target"])]
