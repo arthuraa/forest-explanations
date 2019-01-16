@@ -8,7 +8,6 @@ from scipy.stats import wasserstein_distance, mode
 from collections import OrderedDict
 import pandas as pd
 import numpy as np
-import communities
 import sklearn
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from forest_clusters import ForestClusters, buckets, total_variation, votes
