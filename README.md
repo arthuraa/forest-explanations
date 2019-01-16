@@ -10,6 +10,7 @@ Requirements:
 - Matplotlib
 - Jupyter
 - Category Encoders (`category_encoders` on pip)
+- `xgboost`
 
 Have a look at the examples by opening a Jupyter notebook and loading the
 notebook files.
