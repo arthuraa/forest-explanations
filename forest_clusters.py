@@ -13,8 +13,6 @@ from sklearn.cluster import KMeans, AgglomerativeClustering
 
 import matplotlib.pyplot as plt
 
-import communities
-
 import cgi
 from subprocess import call
 
@@ -120,7 +118,7 @@ class ForestClusters():
                                     for col in X.columns])
                 tvs = tvs.sort_values(1, ascending = False)
                 for i in range(len(tvs)):
-                    print("**** %s: %.04f\n%s\n" % (tvs.iloc[i, 0], tvs.iloc[i, 1], communities.description[tvs.iloc[i,0]]), file = f)
+                    print("**** %s: %.04f\n" % (tvs.iloc[i, 0], tvs.iloc[i, 1]), file = f)
                     print(buckets(X[tvs.iloc[i, 0]][idx]), file = f)
                     print("\nvs.\n", file = f)
                     print(buckets(X[tvs.iloc[i, 0]]), file = f)
