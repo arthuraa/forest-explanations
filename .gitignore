@@ -1,3 +1,6 @@
 results/
 *.pyc
 *.csv
+adult.data
+adult.names
+adult.test
