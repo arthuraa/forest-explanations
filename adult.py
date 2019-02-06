@@ -8,8 +8,8 @@ column_names = ["age", "workclass", "fnlwgt", "education", "education_num", "mar
                 "hours_per_week", "country", "target"]
 
 path = os.path.dirname(os.path.realpath(__file__))
-train_path = os.path.join(path, 'adult.data')
-test_path = os.path.join(path, 'adult.test')
+train_path = os.path.join(path, 'data', 'adult.data')
+test_path = os.path.join(path, 'data', 'adult.test')
 
 original_train = pd.read_csv(train_path,
                              names = column_names,
