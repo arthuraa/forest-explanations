@@ -12,9 +12,10 @@ wget -q https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.da
 wget -q https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test
 wget -q https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.names
 
-# Communities and Crime from UCI (http://archive.ics.uci.edu/ml/datasets/communities+and+crime+unnormalized)
+# Communities and Crime from UCI (http://archive.ics.uci.edu/ml/datasets/communities+and+crime)
 echo "Communities and Crime"
-wget -q http://archive.ics.uci.edu/ml/machine-learning-databases/00211/CommViolPredUnnormalizedData.txt -O communities.data
+wget -q http://archive.ics.uci.edu/ml/machine-learning-databases/communities/communities.data
+wget -q http://archive.ics.uci.edu/ml/machine-learning-databases/communities/communities.names
 
 echo "Delta"
 # Delta dataset (http://www.dcc.fc.up.pt/~ltorgo/Regression/DataSets.html)
