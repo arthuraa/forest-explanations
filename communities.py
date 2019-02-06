@@ -1,8 +1,7 @@
 from __future__ import print_function
 
 import pandas as pd
-
-data = pd.read_csv('data/communities.data', header = 0, na_values = '?')
+import os
 
 uninformative = [
     'state',
@@ -162,3 +161,13 @@ description = {
     'PolicBudgPerPop': 'police operating budget per population (numeric - decimal)',
     'ViolentCrimesPerPop': 'total number of violent crimes per 100K popuation (numeric - decimal) GOAL attribute (to be predicted)'
 }
+
+column_names = list(description.keys())
+
+path = os.path.dirname(os.path.realpath(__file__))
+path = os.path.join(path, 'data', 'communities.data')
+
+data = pd.read_csv(path, names = column_names, na_values = '?')
+
+target = data['ViolentCrimesPerPop']
+del data['ViolentCrimesPerPop']

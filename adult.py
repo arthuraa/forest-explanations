@@ -35,5 +35,6 @@ del original['fnlwgt']
 del original["education"]
 
 binary = pd.get_dummies(original)
-labels = binary["target"]
+target = binary["target"]
+labels = target
 binary = binary[binary.columns.difference(["target"])]
