@@ -11,6 +11,7 @@ Requirements:
 - Jupyter
 - Category Encoders (`category_encoders` on pip)
 - `xgboost`
+- `graphviz`
 
 Have a look at the examples by opening a Jupyter notebook and loading the
 notebook files.
