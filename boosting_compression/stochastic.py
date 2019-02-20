@@ -24,36 +24,6 @@ import physics
 import magic
 import spambase
 
-warnings.filterwarnings('ignore', category = FutureWarning)
-
-data = {}
-
-def enc(X):
-    e = CEOneHotEncoder(use_cat_names = True, handle_unknown = 'ignore').fit(X)
-    return e.transform(X)
-
-adult_features = adult.original_train
-adult_features = adult_features.assign(male = adult_features['sex'] == 'Male')
-adult_target = adult_features['target']
-data['adult'] = (enc(adult_features.drop(['target', 'sex', 'fnlwgt'], axis=1, inplace=False)),
-                 adult_target)
-data['communities'] = (communities.data.drop(communities.uninformative, axis=1),
-                       communities.target >= 0.5)
-data['gisette'] = (gisette.original, gisette.target)
-data['letter'] = (letter.original, letter.target)
-data['physics'] = (physics.original, physics.target)
-data['magic'] = (magic.original, magic.target)
-data['spambase'] = (spambase.original, spambase.target)
-
-n_estimators = 2000
-n_trials = 4
-n_processes = 5
-n_steps = 7
-depths = [1, 2]
-population_size = 2000
-pool_size = 1000
-fresh_size = population_size - pool_size
-
 def traverse_aux(tree, feature_type, predicates, path):
     if 'leaf' in tree:
         predicates.append(path)
@@ -86,7 +56,9 @@ def sample(l, size):
     idx = np.random.choice(range(len(l)), size, replace = False)
     return [l[i] for i in idx]
 
-def simplify(exp_id, X_train, X_test, y_train, y_test, model, steps, pooling):
+def compress(exp_id, X_train, X_test, y_train, y_test, model, steps, pooling,
+             population_size, pool_size = 0):
+    fresh_size = population_size - pool_size
     dump = model.get_booster().get_dump(dump_format = 'json')
     trees = [json.loads(tree) for tree in dump]
     predicates = traverse(trees, X_train.columns.dtype)
@@ -137,30 +109,3 @@ def simplify(exp_id, X_train, X_test, y_train, y_test, model, steps, pooling):
         print("Test score %.4f" % best_logreg.score(X_proj_test, y_test))
         selected.append(best_pred)
     return selected
-
-def task(arg):
-    ((name, (X, y)), depth, pooling, i) = arg
-    exp_id = "%s, depth %d, pooling %d, trial %d" % (name, depth, pooling, i)
-    print(time.strftime('%X'), "Beginning", exp_id)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1)
-    model = XGBClassifier(max_depth = depth, n_estimators = n_estimators)
-    model = model.fit(X_train, y_train)
-    print(time.strftime('%X'), "Trained boosting model", exp_id)
-    predicates = simplify(exp_id, X_train, X_test, y_train, y_test, model, n_steps, pooling)
-    original_score = model.score(X_test, y_test)
-    X_proj_train = np.concatenate([apply_pred(X_train,pred).values.reshape(-1,1) for pred in predicates], axis = 1)
-    X_proj_test = np.concatenate([apply_pred(X_test,pred).values.reshape(-1,1) for pred in predicates], axis = 1)
-    logreg = LogisticRegression(solver = 'lbfgs', multi_class = 'auto').fit(X_proj_train, y_train)
-    simplified_score = logreg.score(X_proj_test, y_test)
-    print(time.strftime('%X'), "Finished %s, score %.3f -> %.3f" % (exp_id, original_score, simplified_score))
-    return (name, depth, pooling, i, original_score, simplified_score, model, predicates)
-
-# pool = Pool(n_processes)
-
-# results = pool.map(task, product(data.items(), depths, [True, False], range(n_trials)))
-
-data = {'gisette': data['gisette']}
-
-results = [task(arg) for arg in product(data.items(), depths, [True, False], range(n_trials))]
-
-pickle.dump(results, open('results/boosting_compression', 'wb'))
